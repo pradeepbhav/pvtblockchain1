@@ -1,0 +1,151 @@
+//observation
+//blocks addedandlinked.height is correct
+//code is closed ..validate blockchain is incorrect
+
+// #18 basicdata 
+//checked on empty db used promises
+//put genesis 
+//added block body,timestamp,hash
+//next add previous hash and link them up
+
+
+const SHA256 = require('crypto-js/sha256');
+const level = require('level');
+const ppf = './ppfolder87'; 
+const ppdb = level(ppf); 
+class Block
+	{
+	constructor(data)
+		{
+		this.body=data;
+		}
+	}
+
+class Blockchain
+{
+	constructor()
+	{
+    this.checkGenesis();
+	}
+	
+	async checkGenesis()
+	{
+		const height = await this.getBlockHeight();
+		if (height === -1) 
+		{
+			console.log("empty, hence adding genesis block")
+			let gen=new Block('First block in the chain - Genesis block')
+			gen.time = new Date().getTime().toString().slice(0,-3);
+			gen.hash = SHA256(JSON.stringify(gen.body)).toString();
+			gen.previousHash ='0x';
+			gen.height=0;
+			addDataToLevelDB(gen);
+			console.log("Genesis block has been created")
+		}
+	}
+		  
+//  
+async addBlock(newBlock)
+	{
+		newBlock.time = new Date().getTime().toString().slice(0,-3);
+		newBlock.hash = SHA256(JSON.stringify(newBlock)).toString();
+		
+		let aa = await this.getBlockHeight();
+        //console.log(aa);
+       
+		if (aa>-1)
+		newBlock.height=++aa;
+		
+		if(newBlock.height>0)
+			{
+				let prevBlock = await this.getBlock(newBlock.height-1);
+				newBlock.previousBlockHash = prevBlock.hash;
+			}
+		else
+				newBlock.previousBlockHash = "";
+				
+		await addDataToLevelDB(newBlock);
+		return await ppdb.get(newBlock.height);
+	}		  
+		  
+		  
+getBlockHeight() 
+	{
+		return new Promise((resolve, reject) => 
+		{
+			let i = 0;
+			ppdb.createReadStream()
+				.on('data', data => {
+				i++;
+				})
+				.on('error', err => reject(err))
+				.on('end', () => {
+				resolve(i-1)
+				});
+		});
+	}
+getBlock(e1) 
+{
+		return new Promise((resolve, reject) => 
+		{
+		  ppdb.get(e1)
+			.then(block => {
+			  resolve(JSON.parse(block));
+			})
+			.catch(() => {
+			   reject(error);
+			});
+		});
+	  }
+
+async validateBlock(blockHeight) 
+	{
+		let cc = await this.getBlock(blockHeight)
+		let temphashtotest = cc.hash;
+		cc.hash = '';
+		let tempbody=cc.body;
+		let regenBlockHash = SHA256(JSON.stringify(tempbody)).toString();
+				if (temphashtotest === regenBlockHash) 
+				{
+				console.log('true'); 
+				}
+				else 
+				{
+				console.log('false')
+				}
+	}
+	  
+} // end of BC constructor
+
+
+
+function addDataToLevelDB(value)
+	{
+		return new Promise((resolve, reject) =>
+		{
+		let i = 0;
+		ppdb.createReadStream()
+		.on('data', data => {
+			i++;
+			})
+		.on('error', err => reject(err))
+		.on('end', () =>
+			{
+			console.log('Block#'+i)
+			addLevelDBData(i,value)
+			});
+		})
+	} 
+ 
+	
+function addLevelDBData(key,value)
+	{
+	ppdb.put(key,JSON.stringify(value))
+	.then(function () { return ppdb.get(key) })
+	.then(function (value) { console.log("the value is "+ value)})
+	.catch(function (err) { console.error(err) });
+	}
+
+/*
+setTimeout(function() { ppbc.getBlockHeight().then(height => console.log(height));}, 200);
+*/
